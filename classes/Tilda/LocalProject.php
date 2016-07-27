@@ -1,19 +1,9 @@
 <?php
-///////////////////////////////////////////////////////////////////////////////
-/**
- * Tilda Publishing
- * @copyright (C) 2015 Оbukhov Nikita Valentinovich. Russia
- * @license MIT
- *
- * @author Nikita Obukhov <hello@tilda.cc>
- * @author Michael Akimov <michael@island-future.ru>
- * 
- * Описание: 
- * Класс для работы с API tilda.cc
- * 
- **/
-///////////////////////////////////////////////////////////////////////////////
+
 namespace Tilda;
+
+use \Phar;
+use \PharData;
 
 class LocalProject
 {
@@ -22,6 +12,7 @@ class LocalProject
     public $baseDir;
     /* директория, куда будут сохраняться данные проекта (указываем путь относительно корневой директории) */
     public $projectDir;
+    public $exportDir;
     
     /**
      * Данные по проекту
@@ -85,6 +76,18 @@ class LocalProject
         } else {
             $this->projectDir = '';
         }
+
+        if (! empty($arOptions['exportDir'])) {
+            $this->exportDir = $arOptions['exportDir'];
+
+            if (! file_exists($this->baseDir . $this->projectDir . $this->exportDir)) {
+                if (!mkdir($this->baseDir . $this->projectDir . $this->exportDir, 0776, true)) {
+                    throw new Exception('Cannot create Export dir [' . $this->baseDir.$this->projectDir.$this->exportDir . ']'."\n");
+                }
+            }
+        } else {
+            $this->exportDir = '';
+        }
         
         if (isset($arOptions['buglovers'])) {
             $this->buglovers = $arOptions['buglovers'];
@@ -104,10 +107,15 @@ class LocalProject
     /* возвращает абсолютный путь до директорий проекта */
     public function getProjectFullDir()
     {
-        return $this->baseDir . $this->projectDir;
+        return $this->baseDir . $this->projectDir . ($this->exportDir ? ($this->exportDir . DIRECTORY_SEPARATOR) : '');
         
     }
-    
+
+    public function getUploadPath()
+    {
+        return $this->getProjectDir() ? ('/' . $this->getProjectDir()) : '';
+    }
+
     public function setProject(&$arProject)
     {
         $this->arProject = $arProject;
@@ -122,7 +130,7 @@ class LocalProject
             return false;
         }
         
-        $upload_path = '/' . $this->getProjectDir();
+        $upload_path = $this->getUploadPath();
         if (DIRECTORY_SEPARATOR != '/') {
             $upload_path = str_replace(DIRECTORY_SEPARATOR,'/', $upload_path);
         }
@@ -169,7 +177,7 @@ class LocalProject
             return false;
         }
         
-        $upload_path = '/' . $this->getProjectDir();
+        $upload_path = $this->getUploadPath();
         if (DIRECTORY_SEPARATOR != '/') {
             $upload_path = str_replace(DIRECTORY_SEPARATOR,'/', $upload_path);
         }
@@ -215,7 +223,7 @@ class LocalProject
             return false;
         }
         
-        $upload_path = '/' . $this->getProjectDir();
+        $upload_path = $this->getUploadPath();
         if (DIRECTORY_SEPARATOR != '/') {
             $upload_path = str_replace(DIRECTORY_SEPARATOR,'/', $upload_path);
         }
@@ -252,6 +260,26 @@ class LocalProject
         }
         
         return $arResult;
+    }
+
+    public function createHTAccessFile()
+    {
+        $res = false;
+        $fullprojectdir = $this->getProjectFullDir();
+        $newfile = $fullprojectdir.'.htaccess';
+
+        if (file_put_contents($newfile, $this->arProject['htaccess'])) {
+            echo('<li>File created: '.$newfile."\n");
+            if (!chmod($newfile, 0644)) {
+                echo('. But can\'t set permission for file to 0644');    
+            } else {
+                $res = true;
+            }
+        } else {
+            echo "file create failed: ".$newfile."\n";
+        }
+
+        return $res;
     }
 
     /**
@@ -349,7 +377,7 @@ class LocalProject
             return false;
         }
         
-        $fullprojectdir = $this->baseDir.$this->projectDir; 
+        $fullprojectdir = $this->getProjectFullDir();
         $newfile=$fullprojectdir.$to;
         
         if (copy($from, $newfile)) {
@@ -436,7 +464,7 @@ class LocalProject
     
     function createPage($to,$str)
     {
-        $fullprojectdir=$this->baseDir.$this->projectDir;
+        $fullprojectdir=$this->getProjectFullDir();
         $newfile=$fullprojectdir.$to;
         
         if (file_put_contents($newfile, $str)) {
@@ -480,7 +508,7 @@ class LocalProject
         if ($upload_path == '') {
             
             $upload_dir = $this->getProjectFullDir() . 'img'. DIRECTORY_SEPARATOR;
-            $upload_path = '/' . $this->getProjectDir() . 'img/';
+            $upload_path = $this->getUploadPath() . 'img/';
             if (DIRECTORY_SEPARATOR != '/') {
                 $upload_path = str_replace(DIRECTORY_SEPARATOR,'/', $upload_path);
             }
@@ -530,7 +558,7 @@ class LocalProject
      */
     public function savePage($tildapage)
     {
-        $filename = $tildapage['id'] . '.html';
+        $filename = $tildapage['filename'];
         
         $upload_path = $this->getProjectFullDir();
         
@@ -544,7 +572,7 @@ class LocalProject
         }
 
         if ($tildapage['img'] > '' && substr($tildapage['img'],0,4) == 'http') {
-            $tmp = $this->copyImageTo($tildapage['img'], $upload_path . 'img' . DIRECTORY_SEPARATOR, true);
+            $tmp = $this->copyImageTo($tildapage['img'], 'img' . DIRECTORY_SEPARATOR, true);
             $tildapage['images'][] = array(
                 'from' => $tildapage['img'],
                 'to' => $tildapage['img'],
@@ -554,7 +582,7 @@ class LocalProject
         }    
 
         if ($tildapage['featureimg'] > '' && substr($tildapage['featureimg'],0,4) == 'http') {
-            $tmp = $this->copyImageTo($tildapage['featureimg'], $upload_path . 'img' . DIRECTORY_SEPARATOR, true);
+            $tmp = $this->copyImageTo($tildapage['featureimg'], 'img' . DIRECTORY_SEPARATOR, true);
             $tildapage['images'][] = array(
                 'from' => $tildapage['featureimg'],
                 'to' => $tildapage['featureimg'],
@@ -564,7 +592,7 @@ class LocalProject
         }    
 
         if ($tildapage['fb_img'] > '' && substr($tildapage['fb_img'],0,4) == 'http') {
-            $tmp = $this->copyImageTo($tildapage['fb_img'], $upload_path . 'img' . DIRECTORY_SEPARATOR, true);
+            $tmp = $this->copyImageTo($tildapage['fb_img'], 'img' . DIRECTORY_SEPARATOR, true);
             $tildapage['images'][] = array(
                 'from' => $tildapage['fb_img'],
                 'to' => $tildapage['fb_img'],
@@ -613,7 +641,19 @@ EOT;
         
         return $page;
     }
-    
+
+    public function archiveSite()
+    {
+        if (! empty($this->exportDir)) {
+            $archive = new PharData($this->exportDir . '.tar');
+            $archive->buildFromDirectory($this->getProjectFullDir());
+            $archive->compress(Phar::GZ);
+            unset($archive);
+            @unlink($this->exportDir . '.tar');
+            deleteDir($this->getProjectFullDir());
+            //rename($this->exportDir . '.tar.gz', "../backup/" . $this->exportDir . '.tar.gz');
+        }
+    }
 
     /* в случае ошибки отправляет сообщение, выводит JSON сообщение об ошибке и завершает работу скрипта */
     public function errorEnd($message)
@@ -639,5 +679,26 @@ EOT;
 
 
 
+}
+
+function deleteDir($path)
+{
+    if (is_dir($path) === true)
+    {
+        $files = array_diff(scandir($path), array('.', '..'));
+
+        foreach ($files as $file)
+        {
+            deleteDir(realpath($path) . '/' . $file);
+        }
+
+        return rmdir($path);
+    }
+    else if (is_file($path) === true)
+    {
+        return unlink($path);
+    }
+
+    return false;
 }
 
