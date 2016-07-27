@@ -12,6 +12,7 @@ class LocalProject
     public $baseDir;
     /* директория, куда будут сохраняться данные проекта (указываем путь относительно корневой директории) */
     public $projectDir;
+    // Dir for archiving site files
     public $exportDir;
     
     /**
