@@ -643,7 +643,7 @@ EOT;
         return $page;
     }
 
-    public function archiveSite()
+    public function archiveSite($deploy)
     {
         if (! empty($this->exportDir)) {
             $archive = new PharData($this->exportDir . '.tar');
@@ -651,6 +651,11 @@ EOT;
             $archive->compress(Phar::GZ);
             unset($archive);
             @unlink($this->exportDir . '.tar');
+            if($deploy){
+                echo "Copy dir: " . $this->getProjectFullDir() . " to " . $this->baseDir . $this->projectDir . "<br>";
+                $resDeploy = copyDir($this->getProjectFullDir(), $this->baseDir . $this->projectDir);
+                echo "Deploy site - " . ($resDeploy ? "success" : "failed") . "<br>";
+            }
             deleteDir($this->getProjectFullDir());
             //rename($this->exportDir . '.tar.gz', "../backup/" . $this->exportDir . '.tar.gz');
         }
@@ -703,3 +708,26 @@ function deleteDir($path)
     return false;
 }
 
+function copyDir($src, $dst)
+{
+    if (is_dir($src)) {
+        $dir = opendir($src);
+        while ($file = readdir($dir)) {
+            if ($file != "." && $file != "..") {
+                if (is_dir($src . DIRECTORY_SEPARATOR . $file)) {
+                    if (!is_dir($dst . DIRECTORY_SEPARATOR . $file)) {
+                        mkdir($dst . DIRECTORY_SEPARATOR . $file);
+                    }
+                    copyDir($src . DIRECTORY_SEPARATOR . $file, $dst . DIRECTORY_SEPARATOR . $file);
+                } else {
+                    copy($src . DIRECTORY_SEPARATOR . $file, $dst . DIRECTORY_SEPARATOR . $file);
+                }
+            }
+        }
+        closedir($dir);
+    } else {
+        return false;
+    }
+
+    return true;
+}
