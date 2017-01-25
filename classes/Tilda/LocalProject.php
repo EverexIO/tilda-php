@@ -12,7 +12,6 @@ class LocalProject
     public $baseDir;
     /* директория, куда будут сохраняться данные проекта (указываем путь относительно корневой директории) */
     public $projectDir;
-    // Dir for archiving site files
     public $exportDir;
     
     /**
@@ -32,7 +31,9 @@ class LocalProject
      */
     public $arReplaceFiles=array();
     public $arReplaceImages=array();
-    
+
+    public $arOuterImageFiles=array();
+
     public $emailFrom = 'postmaster';
     public $buglovers = 'you@mail.there';
     
@@ -114,7 +115,8 @@ class LocalProject
 
     public function getUploadPath()
     {
-        return $this->getProjectDir() ? ('/' . $this->getProjectDir()) : '';
+        //return $this->getProjectDir() ? ('/' . $this->getProjectDir()) : '';
+        return '/' . $this->getProjectDir();
     }
 
     public function setProject(&$arProject)
@@ -152,7 +154,8 @@ class LocalProject
             $newfile = $this->copyFile($this->arProject['css'][$i]['from'], $subdir . DIRECTORY_SEPARATOR . $this->arProject['css'][$i]['to']);
             if (! $newfile) {
                 //die("Error for coping:" . $this->lastError);
-                return false;
+                //return false;
+                continue;
             }
             $arResult[] = $newfile;
             
@@ -198,8 +201,9 @@ class LocalProject
         for ($i=0;$i<count($this->arProject['js']);$i++) {
             $newfile = $this->copyFile($this->arProject['js'][$i]['from'], $subdir . DIRECTORY_SEPARATOR . $this->arProject['js'][$i]['to']);
             if (! $newfile) {
-                //die("Error for coping:" . $this->lastError);
-                return false;
+                echo("Error for coping: " . $this->arProject['js'][$i]['from'] . " to ". $subdir . DIRECTORY_SEPARATOR . $this->arProject['js'][$i]['to']);
+                //return false;
+                continue;
             }
             $arResult[] = $newfile;
             if (substr($this->arProject['js'][$i]['to'],0,4) != 'http') {
@@ -211,7 +215,6 @@ class LocalProject
                 $this->arReplaceFiles[] =  $upload_path.$subdir.'/'.$this->arProject['js'][$i]['to'];
             }
         }
-        
         return $arResult;
     }
 
@@ -242,13 +245,16 @@ class LocalProject
         $arResult = array();
         //js
         for ($i=0;$i<count($this->arProject['images']);$i++) {
-            $newfile = $this->copyFile($this->arProject['images'][$i]['from'], $subdir . DIRECTORY_SEPARATOR . $this->arProject['images'][$i]['to']);
-            if (! $newfile) {
-                //die("Error for coping:" . $this->lastError);
-                return false;
+            if(empty($this->arProject['images'][$i]['nocopy'])){
+                $newfile = $this->copyFile($this->arProject['images'][$i]['from'], $subdir . DIRECTORY_SEPARATOR . $this->arProject['images'][$i]['to']);
+                if (! $newfile) {
+                    //die("Error for coping:" . $this->lastError);
+                    //return false;
+                    continue;
+                }
+                
+                $arResult[] = $newfile;
             }
-            
-            $arResult[] = $newfile;
             
             if (substr($this->arProject['images'][$i]['to'],0,4) != 'http') {
                 if ($this->arProject['export_imgpath'] > '') {
@@ -269,7 +275,30 @@ class LocalProject
         $fullprojectdir = $this->getProjectFullDir();
         $newfile = $fullprojectdir.'.htaccess';
 
-        if (file_put_contents($newfile, $this->arProject['htaccess'])) {
+        $htaccess = '';
+        $rule404 = '';
+        $addedRedir301 = false;
+        $aRules = explode(PHP_EOL, $this->arProject['htaccess']);
+        foreach($aRules as $rule){
+            if(!$rule) continue;
+
+            if(!$rule404 && preg_match('/404error\$\s*(.*)$/', $rule, $matches)){
+                //RewriteRule ^404error$ page249917.html
+                $rule404 = 'ErrorDocument 404 ' . '/' . $matches[1];
+            }
+            $htaccess .= $rule;
+            $htaccess .= PHP_EOL;
+            if(!$addedRedir301 && preg_match('/RewriteEngine\s*On/', $rule)){
+                $htaccess .= 'RewriteCond %{REQUEST_FILENAME} !-d' . PHP_EOL;
+                $htaccess .= 'RewriteRule ^(.*)/$ /$1 [L,R=301]' . PHP_EOL;
+                $addedRedir301 = true;
+            }
+        }
+        if($rule404){
+            $htaccess = $rule404 . PHP_EOL . $htaccess . PHP_EOL;
+        }
+
+        if (file_put_contents($newfile, $htaccess)) {
             echo('<li>File created: '.$newfile."\n");
             if (!chmod($newfile, 0644)) {
                 echo('. But can\'t set permission for file to 0644');    
@@ -433,7 +462,7 @@ class LocalProject
 
             /* определяем тип изображения */
             if(empty($size['mime'])) {
-                $ext = 'jpg';
+                $ext = $ext ? $ext : 'jpg';
             } else {
                 $img = null;
                 if ($size['mime'] == 'image/jpeg') {
@@ -525,7 +554,7 @@ class LocalProject
             foreach ($tildapage['images'] as $image) {
                 if( isset($uniq[$image['from']]) ){ continue; }
                 $uniq[$image['from']] = 1;
-                
+
                 if ($export_imgpath > '') {
                     $exportimages[] = '|'.$export_imgpath.'/'.$image['to'].'|i';
                 } else {
@@ -537,11 +566,10 @@ class LocalProject
                     $to = $image['to'];
                 }
                 if(substr($to,0,1) == '/' && substr($upload_path,-1)=='/') {
-                    $replaceimages[] = $upload_path.substr($to,1);
+                    $replaceimages[] = $this->arOuterImageFiles[$image['from']] = $upload_path.substr($to,1);
                 } else {
-                    $replaceimages[] = $upload_path.$to;
+                    $replaceimages[] = $this->arOuterImageFiles[$image['from']] = $upload_path.$to;
                 }
-
             }
             $html = preg_replace($exportimages, $replaceimages, $tildapage['html']);
         } else {
@@ -592,7 +620,7 @@ class LocalProject
             $tildapage['featureimg'] = $tmp;
         }    
 
-        if ($tildapage['fb_img'] > '' && substr($tildapage['fb_img'],0,4) == 'http') {
+        if (isset($tildapage['fb_img']) && $tildapage['fb_img'] > '' && substr($tildapage['fb_img'],0,4) == 'http') {
             $tmp = $this->copyImageTo($tildapage['fb_img'], 'img' . DIRECTORY_SEPARATOR, true);
             $tildapage['images'][] = array(
                 'from' => $tildapage['fb_img'],
@@ -609,6 +637,18 @@ class LocalProject
         file_put_contents($this->getProjectFullDir() . $filename, $tildapage['html']);
 
         return $tildapage;
+    }
+
+    public function fixOuterImages($filename)
+    {
+        $html = file_get_contents($this->getProjectFullDir() . $filename);
+        if(!$html) return;
+
+        foreach($this->arOuterImageFiles as $from => $to){
+            $html = preg_replace("/" . preg_quote($from, '/') . "/i", $to, $html);
+        }
+
+        if($html) file_put_contents($this->getProjectFullDir() . $filename, $html);
     }
 
     /* сохраняем мета данные о странице (нужно ли обновлять, заголовок, обложку и т.п.) */
@@ -657,7 +697,7 @@ EOT;
                 echo "Deploy site - " . ($resDeploy ? "success" : "failed") . "<br>";
             }
             deleteDir($this->getProjectFullDir());
-            //rename($this->exportDir . '.tar.gz', "../backup/" . $this->exportDir . '.tar.gz');
+            rename($this->exportDir . '.tar.gz', "../backup/" . $this->exportDir . '.tar.gz');
         }
     }
 
@@ -710,17 +750,21 @@ function deleteDir($path)
 
 function copyDir($src, $dst)
 {
+echo 'SRC: '.$src.'<br>';
     if (is_dir($src)) {
         $dir = opendir($src);
         while ($file = readdir($dir)) {
             if ($file != "." && $file != "..") {
-                if (is_dir($src . DIRECTORY_SEPARATOR . $file)) {
-                    if (!is_dir($dst . DIRECTORY_SEPARATOR . $file)) {
-                        mkdir($dst . DIRECTORY_SEPARATOR . $file);
+                if (is_dir($src . $file)) {
+                    if (!is_dir($dst . $file)) {
+                        mkdir($dst . $file);
                     }
-                    copyDir($src . DIRECTORY_SEPARATOR . $file, $dst . DIRECTORY_SEPARATOR . $file);
+                    copyDir($src . $file, $dst . $file);
                 } else {
-                    copy($src . DIRECTORY_SEPARATOR . $file, $dst . DIRECTORY_SEPARATOR . $file);
+                    $resCopy = copy($src . DIRECTORY_SEPARATOR . $file, $dst . DIRECTORY_SEPARATOR . $file);
+                    if(!$resCopy){
+                        echo 'Error copy file: '.$src . DIRECTORY_SEPARATOR . $file.' to '.$dst. DIRECTORY_SEPARATOR . $file.'<br>';
+                    }
                 }
             }
         }
