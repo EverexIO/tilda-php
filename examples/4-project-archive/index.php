@@ -41,6 +41,8 @@ if(!$projectTitle){
 }
 
 echo '<br><br>Export project with ID ' . $projectId . "<br><br>";
+flush();
+ob_flush();
 
 /* Запрашиваем список страниц проекта и сохраняем ID страниц */
 $arExportPages = array();
@@ -102,13 +104,17 @@ if (sizeof($arExportPages) > 0) {
         die('Error in copy JS files [' . $api->lastError . ']');
     }
     print_r($arFiles);
-    
+    flush();
+    ob_flush();
+
     /* копируем общие IMG файлы */
     $arFiles = $local->copyImagesFiles('img');
     if (! $arFiles) {
         die('Error in copy IMG files [' . $api->lastError . ']');
     }
     print_r($arFiles);
+    flush();
+    ob_flush();
 
     $res = $local->createHTAccessFile();
     if (! $res) {
@@ -148,6 +154,8 @@ if (sizeof($arExportPages) > 0) {
             echo "Error [".$countexport."] tilda page dont export ".$pageid." [".$e->getMessage()."]<br>";
         }
         $countexport++;
+        flush();
+        ob_flush();
     }
 
     echo "Fix outer images in all pages:<br>";
