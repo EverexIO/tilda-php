@@ -7,6 +7,12 @@ include ".." . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "classes" . DI
 include ".." . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "classes" . DIRECTORY_SEPARATOR . "Tilda" . DIRECTORY_SEPARATOR . "LocalProject.php";
 
 set_time_limit(0);
+header("Cache-Control: no-cache, must-revalidate");
+header('X-Accel-Buffering: no');
+ob_implicit_flush(true);
+while (ob_get_level() > 0) {
+    ob_end_flush();
+}
 
 echo '<!doctype html><html lang="en"><head><meta charset="UTF-8"><title>Export site</title></head><body>';
 
