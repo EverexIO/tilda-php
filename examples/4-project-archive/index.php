@@ -1,10 +1,14 @@
 <?php
+error_reporting(E_ALL);
+
 define('TILDA_PROJECT_ID', '???');
 define('TILDA_PUBLIC_KEY', '???');
 define('TILDA_SECRET_KEY', '???');
 
 include ".." . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "classes" . DIRECTORY_SEPARATOR . "Tilda" . DIRECTORY_SEPARATOR . "Api.php";
 include ".." . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "classes" . DIRECTORY_SEPARATOR . "Tilda" . DIRECTORY_SEPARATOR . "LocalProject.php";
+
+$htaccessAdd = "";
 
 set_time_limit(0);
 header("Cache-Control: no-cache, must-revalidate");
@@ -122,7 +126,7 @@ if (sizeof($arExportPages) > 0) {
     flush();
     ob_flush();
 
-    $res = $local->createHTAccessFile();
+    $res = $local->createHTAccessFile($htaccessAdd);
     if (! $res) {
         die('Error in creating .htaccess file');
     }

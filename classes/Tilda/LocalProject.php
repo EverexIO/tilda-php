@@ -269,7 +269,7 @@ class LocalProject
         return $arResult;
     }
 
-    public function createHTAccessFile()
+    public function createHTAccessFile($htaccessAdd = '')
     {
         $res = false;
         $fullprojectdir = $this->getProjectFullDir();
@@ -297,6 +297,8 @@ class LocalProject
         if($rule404){
             $htaccess = $rule404 . PHP_EOL . $htaccess . PHP_EOL;
         }
+
+        $htaccess .= $htaccessAdd;
 
         if (file_put_contents($newfile, $htaccess)) {
             echo('<li>File created: '.$newfile."\n");
@@ -451,13 +453,17 @@ class LocalProject
             $ext = '';
         }
         
-        echo "==> copy file from: $from ".($isRewrite ? 'with rewrite' : 'without rewirite')."\n";
+        echo "==> copy file from: $from ".($isRewrite ? 'with rewrite' : 'without rewirite')." to ".$fullprojectdir . $newfile."\n";
         /* если */
         if (file_exists($fullprojectdir.$newfile.'.'.$ext) && $isRewrite==false) {
             echo 'File already exist: ' . $newfile . ".$ext\n"; 
         } else {
             /* закачиваем файл */
-            copy($from, $fullprojectdir . $newfile);
+            $copyRes = copy($from, $fullprojectdir . $newfile);
+            if(!$copyRes){
+                echo('<font color="red"><b>Error!</b></font>Can\'t copy file.'."\n");
+                return $newfile . '.' . $ext;
+            }
             $size = getimagesize($fullprojectdir . $newfile);
 
             /* определяем тип изображения */
@@ -482,8 +488,8 @@ class LocalProject
             rename($fullprojectdir  . $newfile, $fullprojectdir . $newfile . '.' . $ext);
             if(substr(sprintf('%o', fileperms($fullprojectdir . $newfile . '.' . $ext)), -4) !== "0776"){
                 if(!chmod($fullprojectdir . $newfile . '.' . $ext, 0776)){
-                    echo('. But can\'t set permission for file to 0776'.sprintf('%o', fileperms($fullprojectdir . $newfile . '.' . $ext))."\n");
-                    die();
+                    echo('<font color="red"><b>Error!</b></font> But can\'t set permission for file to 0776'.sprintf('%o', fileperms($fullprojectdir . $newfile . '.' . $ext))."\n");
+                    //die();
                 }
             }
         }
